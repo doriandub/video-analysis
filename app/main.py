@@ -61,28 +61,8 @@ def get_captioner():
             _captioner_client = OpenAI(api_key=settings.OPENAI_API_KEY)
             logger.info("✅ OpenAI Vision captioner initialized")
 
-        elif settings.CAPTION_BACKEND == "moondream2":
-            # Moondream2 local
-            import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer
-
-            logger.info("Loading moondream2 model...")
-            model_id = "vikhyatk/moondream2"
-            revision = "2024-08-26"
-
-            model = AutoModelForCausalLM.from_pretrained(
-                model_id,
-                trust_remote_code=True,
-                revision=revision,
-                torch_dtype=torch.float32,
-                device_map="cpu"
-            )
-            tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
-            _captioner_client = {"model": model, "tokenizer": tokenizer}
-            logger.info("✅ Moondream2 model loaded")
-
         else:
-            raise ValueError(f"Unknown CAPTION_BACKEND: {settings.CAPTION_BACKEND}")
+            raise ValueError(f"Unknown CAPTION_BACKEND: {settings.CAPTION_BACKEND}. Only 'openai' is supported.")
 
     return _captioner_client
 
@@ -174,44 +154,26 @@ def caption_image(image: Image.Image) -> str:
     """Generate caption using hospitality prompt (keywords)"""
     captioner = get_captioner()
 
-    if settings.CAPTION_BACKEND == "openai":
-        # OpenAI Vision with hospitality prompt
-        base64_image = frame_to_base64(image)
+    # OpenAI Vision with hospitality prompt
+    base64_image = frame_to_base64(image)
 
-        response = captioner.chat.completions.create(
-            model=settings.OPENAI_MODEL,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": settings.CAPTION_PROMPT},
-                        {"type": "image_url", "image_url": {"url": base64_image}}
-                    ]
-                }
-            ],
-            max_tokens=150,
-            temperature=0.1,  # Low temperature for factual keywords
-            timeout=settings.OPENAI_TIMEOUT
-        )
+    response = captioner.chat.completions.create(
+        model=settings.OPENAI_MODEL,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": settings.CAPTION_PROMPT},
+                    {"type": "image_url", "image_url": {"url": base64_image}}
+                ]
+            }
+        ],
+        max_tokens=150,
+        temperature=0.1,  # Low temperature for factual keywords
+        timeout=settings.OPENAI_TIMEOUT
+    )
 
-        return response.choices[0].message.content.strip()
-
-    elif settings.CAPTION_BACKEND == "moondream2":
-        # Moondream2 local - simplified prompt for keyword extraction
-        model = captioner["model"]
-        tokenizer = captioner["tokenizer"]
-
-        # Encode image
-        enc_image = model.encode_image(image)
-
-        # Simpler prompt for moondream2 (it doesn't understand complex instructions as well)
-        simple_prompt = "List the main objects, furniture, and features you see in this image, separated by commas."
-
-        # Generate caption
-        caption = model.answer_question(enc_image, simple_prompt, tokenizer)
-        return caption.strip()
-
-    return "Unknown backend"
+    return response.choices[0].message.content.strip()
 
 
 def analyze_video(video_path: str, threshold: float = 27.0, max_cuts: int = 30) -> AnalysisResult:
