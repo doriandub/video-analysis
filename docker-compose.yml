@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "${PORT:-8190}:8000"
+    environment:
+      - API_KEY=${API_KEY:-your-secret-key}
+      - CAPTION_PROMPT=${CAPTION_PROMPT:-Describe this video frame in one concise sentence, focusing on the main visual elements, setting, and any people or objects present.}
+    volumes:
+      # Cache models to avoid re-downloading
+      - model-cache:/app/models
+      # Mount app for development (optional)
+      # - ./app:/app/app
+    restart: unless-stopped
+    mem_limit: 4g
+    cpus: 2
+
+volumes:
+  model-cache:
